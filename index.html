@@ -57,9 +57,43 @@
   .copy-row{display:flex;gap:8px;}
   .copy-row input{flex:1;}
   .copy-row button{width:auto;padding:10px 14px;margin-top:0;}
+
+  .event-banner{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;text-align:center;padding:12px 16px;font-weight:800;font-size:15px;letter-spacing:0.3px;}
+  .event-banner small{display:block;font-weight:600;font-size:12px;opacity:0.85;margin-top:2px;}
+
+  /* 추첨기 (로또 머신 스타일) */
+  .lotto-machine{position:relative;height:160px;border-radius:50%;background:radial-gradient(circle at 30% 30%, #efeaff, #d8d2f7);border:4px solid var(--primary);overflow:hidden;margin:10px auto;width:160px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 20px rgba(91,75,218,0.25);}
+  .lotto-machine.spinning .mini-ball{animation:bounceAround 0.5s infinite ease-in-out;}
+  .mini-ball{position:absolute;width:26px;height:26px;border-radius:50%;background:#fff;border:2px solid var(--primary);opacity:0.5;}
+  .mini-ball:nth-child(1){top:10%;left:20%;animation-delay:0s;}
+  .mini-ball:nth-child(2){top:60%;left:65%;animation-delay:0.1s;}
+  .mini-ball:nth-child(3){top:30%;left:70%;animation-delay:0.2s;}
+  .mini-ball:nth-child(4){top:70%;left:15%;animation-delay:0.3s;}
+  @keyframes bounceAround{
+    0%{transform:translate(0,0);}
+    25%{transform:translate(8px,-10px);}
+    50%{transform:translate(-10px,6px);}
+    75%{transform:translate(6px,10px);}
+    100%{transform:translate(0,0);}
+  }
+  .lotto-ball-main{position:relative;z-index:2;width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#ffffff,#e9e5ff);border:3px solid var(--primary-dark);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:var(--primary-dark);text-align:center;padding:6px;word-break:keep-all;line-height:1.15;box-shadow:0 4px 10px rgba(0,0,0,0.15);transition:transform 0.15s;}
+  .lotto-machine.spinning .lotto-ball-main{animation:ballSpin 0.25s infinite linear;}
+  @keyframes ballSpin{
+    0%{transform:rotate(0deg) scale(1);}
+    50%{transform:rotate(180deg) scale(1.05);}
+    100%{transform:rotate(360deg) scale(1);}
+  }
+  .lotto-ball-main.popped{animation:popOut 0.4s ease-out;}
+  @keyframes popOut{
+    0%{transform:scale(0.6);}
+    60%{transform:scale(1.15);}
+    100%{transform:scale(1);}
+  }
 </style>
 </head>
 <body>
+
+<div class="event-banner">Adv. PKG개발 상반기 소통공감행사<small>실시간 빙고 게임</small></div>
 
 <div class="wrap" id="entryWrap">
   <h1>🎯 실시간 빙고</h1>
@@ -124,7 +158,10 @@
   <div class="two-col">
     <div class="card">
       <h3 style="margin-top:0;">🎰 단어 추첨기</h3>
-      <div id="drawResultBox" style="text-align:center;font-size:28px;font-weight:800;color:var(--primary-dark);padding:20px 0;min-height:1.4em;">눌러서 뽑기!</div>
+      <div class="lotto-machine" id="lottoMachine">
+        <div class="mini-ball"></div><div class="mini-ball"></div><div class="mini-ball"></div><div class="mini-ball"></div>
+        <div class="lotto-ball-main" id="drawResultBox">눌러서<br>뽑기!</div>
+      </div>
       <button class="btn" id="callWordBtn">🎲 단어 뽑기!</button>
       <div class="small-muted" id="remainingInfo" style="text-align:center;margin-top:6px;"></div>
       <label style="margin-top:14px;">호출된 단어 (<span id="calledCount">0</span>개)</label>
@@ -267,28 +304,39 @@ function enterHostDashboard(roomCode, size, words){
     const calledSnap = await db.ref(`rooms/${roomCode}/calledWords`).get();
     const calledData = calledSnap.val() || {};
     const remaining = words.filter(w => !(w in calledData));
+    const machine = document.getElementById('lottoMachine');
+    const box = document.getElementById('drawResultBox');
+    const btn = document.getElementById('callWordBtn');
+
     if(remaining.length === 0){
-      document.getElementById('drawResultBox').textContent = '🎉 모든 단어 소진!';
+      box.textContent = '🎉 끝!';
       document.getElementById('remainingInfo').textContent = '남은 단어: 0개';
       return;
     }
-    const picked = remaining[Math.floor(Math.random()*remaining.length)];
-    await db.ref(`rooms/${roomCode}/calledWords/${picked}`).set(firebase.database.ServerValue.TIMESTAMP);
 
-    const box = document.getElementById('drawResultBox');
-    box.textContent = '🎲 ...';
+    btn.disabled = true;
+    machine.classList.add('spinning');
+    box.classList.remove('popped');
+
+    const picked = remaining[Math.floor(Math.random()*remaining.length)];
+
     let spins = 0;
     const spinInterval = setInterval(()=>{
       box.textContent = remaining[Math.floor(Math.random()*remaining.length)];
       spins++;
-      if(spins > 10){
-        clearInterval(spinInterval);
-        box.textContent = picked;
-      }
     }, 60);
 
-    document.getElementById('remainingInfo').textContent = `남은 단어: ${remaining.length-1}개`;
-    checkAllBingosForRoom(roomCode);
+    setTimeout(async ()=>{
+      clearInterval(spinInterval);
+      machine.classList.remove('spinning');
+      box.textContent = picked;
+      box.classList.add('popped');
+      btn.disabled = false;
+
+      await db.ref(`rooms/${roomCode}/calledWords/${picked}`).set(firebase.database.ServerValue.TIMESTAMP);
+      document.getElementById('remainingInfo').textContent = `남은 단어: ${remaining.length-1}개`;
+      checkAllBingosForRoom(roomCode);
+    }, 1200);
   };
 
   document.getElementById('resetRoomBtn').onclick = async ()=>{
@@ -318,7 +366,11 @@ function enterHostDashboard(roomCode, size, words){
     });
     document.getElementById('rankTableBody').innerHTML = sorted.map((p,i)=>{
       const cls = p.disqualified ? 'dq' : (i===0 && p.bingoCount>0 ? 'win' : '');
-      const status = p.disqualified ? '❌ 탈락' : (p.bingoCount>0 ? `✅ 빙고 (${i===0?'🥇 1등':i+1+'등'})` : '진행중');
+      let status;
+      if(p.disqualified) status = '❌ 탈락';
+      else if(p.bingoCount>0) status = `✅ 빙고 (${i===0?'🥇 1등':i+1+'등'})`;
+      else if(p.ready) status = '🙋 준비 완료';
+      else status = '⏳ 빙고판 작성 중';
       return `<tr class="${cls}"><td>${i+1}</td><td>${escapeHtml(p.name||'-')}</td><td>${p.checkedCount||0}</td><td>${status}</td></tr>`;
     }).join('');
   });
@@ -347,7 +399,7 @@ document.getElementById('joinRoomBtn').onclick = async ()=>{
   myWordPool = room.words;
 
   await db.ref(`rooms/${code}/players/${myPlayerId}`).set({
-    name, board: [], checked: {}, checkedCount:0, disqualified:false, bingoCount:0, joinedAt: firebase.database.ServerValue.TIMESTAMP
+    name, board: [], checked: {}, checkedCount:0, disqualified:false, bingoCount:0, ready:false, joinedAt: firebase.database.ServerValue.TIMESTAMP
   });
 
   enterPlayerScreen();
@@ -429,6 +481,7 @@ function renderBuildGrid(){
 
 document.getElementById('lockBoardBtn').onclick = async ()=>{
   await db.ref(`rooms/${myRoomCode}/players/${myPlayerId}/board`).set(myBoardWords);
+  await db.ref(`rooms/${myRoomCode}/players/${myPlayerId}/ready`).set(true);
   document.getElementById('boardBuildCard').classList.add('hidden');
   document.getElementById('playCard').classList.remove('hidden');
   renderPlayGrid();
