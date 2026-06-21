@@ -32,11 +32,11 @@
   .room-code{font-size:32px;font-weight:800;text-align:center;letter-spacing:4px;color:var(--primary);margin:10px 0;}
   .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eceaff;color:var(--primary-dark);font-size:12px;font-weight:700;margin-right:6px;}
   .word-bank{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
-  .word-chip{padding:8px 14px;border-radius:10px;background:#eceaff;border:1px solid var(--border);cursor:pointer;font-size:14px;font-weight:600;color:var(--primary-dark);}
+  .word-chip{padding:10px 16px;border-radius:10px;background:#eceaff;border:1px solid var(--border);cursor:pointer;font-size:16px;font-weight:700;color:var(--primary-dark);}
   .word-chip.used{opacity:0.3;pointer-events:none;}
   .word-chip.selected{background:var(--primary);color:#fff;border-color:var(--primary-dark);}
   .bingo-grid{display:grid;gap:6px;margin:14px 0;}
-  .cell{aspect-ratio:1;border:2px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;font-weight:700;cursor:pointer;background:#fff;padding:4px;word-break:keep-all;line-height:1.2;}
+  .cell{aspect-ratio:1;border:2px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:clamp(13px, 4.2vw, 19px);font-weight:800;cursor:pointer;background:#fff;padding:4px;word-break:keep-all;line-height:1.2;overflow:hidden;}
   .cell.filled{background:#f8f7ff;}
   .cell.checked{background:var(--primary);color:#fff;border-color:var(--primary-dark);}
   .cell.empty{color:var(--muted);font-weight:400;cursor:default;}
