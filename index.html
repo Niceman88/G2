@@ -86,10 +86,10 @@
   .lotto-stand-base{width:120px;height:10px;background:#5a4fc4;border-radius:6px;margin-top:2px;box-shadow:0 3px 6px rgba(0,0,0,0.15);}
   .lotto-chute{width:14px;height:30px;background:linear-gradient(180deg,rgba(150,140,220,0.7),rgba(150,140,220,0.3));margin:-4px auto 0;border-radius:0 0 6px 6px;}
 
-  .result-tray{margin-top:10px;width:200px;min-height:64px;background:linear-gradient(135deg,#ffffff,#eeeaff);
-    border:3px solid var(--primary-dark);border-radius:14px;display:flex;align-items:center;justify-content:center;
-    font-size:16px;font-weight:800;color:var(--primary-dark);text-align:center;padding:8px 10px;word-break:keep-all;
-    box-shadow:0 4px 10px rgba(0,0,0,0.12);}
+  .result-tray{margin-top:10px;width:260px;min-height:90px;background:linear-gradient(135deg,#ffffff,#eeeaff);
+    border:3px solid var(--primary-dark);border-radius:16px;display:flex;align-items:center;justify-content:center;
+    font-size:34px;font-weight:900;color:var(--primary-dark);text-align:center;padding:10px 14px;word-break:keep-all;
+    box-shadow:0 4px 10px rgba(0,0,0,0.12);line-height:1.2;}
   .result-tray.popped{animation:trayPop 0.45s ease-out;}
   @keyframes trayPop{
     0%{transform:scale(0.7) translateY(-12px);opacity:0.4;}
@@ -331,9 +331,16 @@ function enterHostDashboard(roomCode, size, words){
 
     const picked = remaining[Math.floor(Math.random()*remaining.length)];
 
+    function fitTrayFont(text){
+      const len = text.length;
+      tray.style.fontSize = len<=2 ? '40px' : len<=4 ? '30px' : len<=8 ? '22px' : '16px';
+    }
+
     let spins = 0;
     const spinInterval = setInterval(()=>{
-      tray.textContent = remaining[Math.floor(Math.random()*remaining.length)];
+      const w = remaining[Math.floor(Math.random()*remaining.length)];
+      tray.textContent = w;
+      fitTrayFont(w);
       spins++;
     }, 70);
 
@@ -341,6 +348,7 @@ function enterHostDashboard(roomCode, size, words){
       clearInterval(spinInterval);
       dome.classList.remove('spinning');
       tray.textContent = picked;
+      fitTrayFont(picked);
       tray.classList.add('popped');
       btn.disabled = false;
 
