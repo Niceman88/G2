@@ -61,32 +61,39 @@
   .event-banner{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;text-align:center;padding:12px 16px;font-weight:800;font-size:15px;letter-spacing:0.3px;}
   .event-banner small{display:block;font-weight:600;font-size:12px;opacity:0.85;margin-top:2px;}
 
-  /* 추첨기 (로또 머신 스타일) */
-  .lotto-machine{position:relative;height:160px;border-radius:50%;background:radial-gradient(circle at 30% 30%, #efeaff, #d8d2f7);border:4px solid var(--primary);overflow:hidden;margin:10px auto;width:160px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 20px rgba(91,75,218,0.25);}
-  .lotto-machine.spinning .mini-ball{animation:bounceAround 0.5s infinite ease-in-out;}
-  .mini-ball{position:absolute;width:26px;height:26px;border-radius:50%;background:#fff;border:2px solid var(--primary);opacity:0.5;}
-  .mini-ball:nth-child(1){top:10%;left:20%;animation-delay:0s;}
-  .mini-ball:nth-child(2){top:60%;left:65%;animation-delay:0.1s;}
-  .mini-ball:nth-child(3){top:30%;left:70%;animation-delay:0.2s;}
-  .mini-ball:nth-child(4){top:70%;left:15%;animation-delay:0.3s;}
-  @keyframes bounceAround{
+  /* 추첨기 (실감나는 로또 머신) */
+  .lotto-wrap{display:flex;flex-direction:column;align-items:center;margin:14px 0;}
+  .lotto-dome{position:relative;width:220px;height:220px;border-radius:50%;
+    background:radial-gradient(circle at 35% 25%, rgba(255,255,255,0.9), rgba(220,225,255,0.35) 40%, rgba(160,170,230,0.25) 70%, rgba(120,110,200,0.3));
+    border:3px solid rgba(150,140,220,0.6);
+    box-shadow:inset 0 0 30px rgba(255,255,255,0.5), inset 0 -10px 25px rgba(91,75,218,0.2), 0 6px 16px rgba(91,75,218,0.25);
+    overflow:hidden;}
+  .lotto-dome::after{content:'';position:absolute;top:8%;left:18%;width:35%;height:20%;background:rgba(255,255,255,0.6);border-radius:50%;filter:blur(4px);transform:rotate(-20deg);}
+  .ball{position:absolute;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:800;color:var(--primary-dark);
+    background:radial-gradient(circle at 30% 30%, #ffffff, #e3e0fb 60%, #c9c3f5);
+    box-shadow:0 2px 4px rgba(0,0,0,0.2), inset -2px -2px 4px rgba(120,100,200,0.3);
+    transition:none;}
+  .lotto-dome.spinning .ball{animation-name:floatBall;animation-timing-function:ease-in-out;animation-iteration-count:infinite;}
+  @keyframes floatBall{
     0%{transform:translate(0,0);}
-    25%{transform:translate(8px,-10px);}
-    50%{transform:translate(-10px,6px);}
-    75%{transform:translate(6px,10px);}
+    25%{transform:translate(var(--dx1),var(--dy1));}
+    50%{transform:translate(var(--dx2),var(--dy2));}
+    75%{transform:translate(var(--dx3),var(--dy3));}
     100%{transform:translate(0,0);}
   }
-  .lotto-ball-main{position:relative;z-index:2;width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#ffffff,#e9e5ff);border:3px solid var(--primary-dark);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:var(--primary-dark);text-align:center;padding:6px;word-break:keep-all;line-height:1.15;box-shadow:0 4px 10px rgba(0,0,0,0.15);transition:transform 0.15s;}
-  .lotto-machine.spinning .lotto-ball-main{animation:ballSpin 0.25s infinite linear;}
-  @keyframes ballSpin{
-    0%{transform:rotate(0deg) scale(1);}
-    50%{transform:rotate(180deg) scale(1.05);}
-    100%{transform:rotate(360deg) scale(1);}
-  }
-  .lotto-ball-main.popped{animation:popOut 0.4s ease-out;}
-  @keyframes popOut{
-    0%{transform:scale(0.6);}
-    60%{transform:scale(1.15);}
+  .lotto-stand{width:70px;height:14px;background:linear-gradient(180deg,#8b7fe0,#6c5ce0);border-radius:0 0 10px 10px;margin-top:-2px;}
+  .lotto-stand-base{width:120px;height:10px;background:#5a4fc4;border-radius:6px;margin-top:2px;box-shadow:0 3px 6px rgba(0,0,0,0.15);}
+  .lotto-chute{width:14px;height:30px;background:linear-gradient(180deg,rgba(150,140,220,0.7),rgba(150,140,220,0.3));margin:-4px auto 0;border-radius:0 0 6px 6px;}
+
+  .result-tray{margin-top:10px;width:200px;min-height:64px;background:linear-gradient(135deg,#ffffff,#eeeaff);
+    border:3px solid var(--primary-dark);border-radius:14px;display:flex;align-items:center;justify-content:center;
+    font-size:16px;font-weight:800;color:var(--primary-dark);text-align:center;padding:8px 10px;word-break:keep-all;
+    box-shadow:0 4px 10px rgba(0,0,0,0.12);}
+  .result-tray.popped{animation:trayPop 0.45s ease-out;}
+  @keyframes trayPop{
+    0%{transform:scale(0.7) translateY(-12px);opacity:0.4;}
+    60%{transform:scale(1.08) translateY(0);opacity:1;}
     100%{transform:scale(1);}
   }
 </style>
@@ -158,9 +165,12 @@
   <div class="two-col">
     <div class="card">
       <h3 style="margin-top:0;">🎰 단어 추첨기</h3>
-      <div class="lotto-machine" id="lottoMachine">
-        <div class="mini-ball"></div><div class="mini-ball"></div><div class="mini-ball"></div><div class="mini-ball"></div>
-        <div class="lotto-ball-main" id="drawResultBox">눌러서<br>뽑기!</div>
+      <div class="lotto-wrap">
+        <div class="lotto-dome" id="lottoMachine"></div>
+        <div class="lotto-chute"></div>
+        <div class="lotto-stand"></div>
+        <div class="lotto-stand-base"></div>
+        <div class="result-tray" id="drawResultBox">눌러서 뽑기!</div>
       </div>
       <button class="btn" id="callWordBtn">🎲 단어 뽑기!</button>
       <div class="small-muted" id="remainingInfo" style="text-align:center;margin-top:6px;"></div>
@@ -209,14 +219,13 @@
   (Firebase 콘솔 > 프로젝트 설정 > 일반 > 내 앱 > SDK 설정 및 구성 에서 복사)
 ======================================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyBagSV-mmRykgR5dZ8oQJW-aMFClS13Ojw",
-  authDomain: "company-bingo-e8ea2.firebaseapp.com",
-  databaseURL: "https://company-bingo-e8ea2-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "company-bingo-e8ea2",
-  storageBucket: "company-bingo-e8ea2.firebasestorage.app",
-  messagingSenderId: "318440692637",
-  appId: "1:318440692637:web:170c86c3bcbbbf33056d74",
-  measurementId: "G-9NDMF44S46"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
@@ -299,44 +308,45 @@ function enterHostDashboard(roomCode, size, words){
   };
 
   document.getElementById('remainingInfo').textContent = `남은 단어: ${words.length}개`;
+  generateLottoBalls();
 
   document.getElementById('callWordBtn').onclick = async ()=>{
     const calledSnap = await db.ref(`rooms/${roomCode}/calledWords`).get();
     const calledData = calledSnap.val() || {};
     const remaining = words.filter(w => !(w in calledData));
-    const machine = document.getElementById('lottoMachine');
-    const box = document.getElementById('drawResultBox');
+    const dome = document.getElementById('lottoMachine');
+    const tray = document.getElementById('drawResultBox');
     const btn = document.getElementById('callWordBtn');
 
     if(remaining.length === 0){
-      box.textContent = '🎉 끝!';
+      tray.textContent = '🎉 끝!';
       document.getElementById('remainingInfo').textContent = '남은 단어: 0개';
       return;
     }
 
     btn.disabled = true;
-    machine.classList.add('spinning');
-    box.classList.remove('popped');
+    dome.classList.add('spinning');
+    tray.classList.remove('popped');
 
     const picked = remaining[Math.floor(Math.random()*remaining.length)];
 
     let spins = 0;
     const spinInterval = setInterval(()=>{
-      box.textContent = remaining[Math.floor(Math.random()*remaining.length)];
+      tray.textContent = remaining[Math.floor(Math.random()*remaining.length)];
       spins++;
-    }, 60);
+    }, 70);
 
     setTimeout(async ()=>{
       clearInterval(spinInterval);
-      machine.classList.remove('spinning');
-      box.textContent = picked;
-      box.classList.add('popped');
+      dome.classList.remove('spinning');
+      tray.textContent = picked;
+      tray.classList.add('popped');
       btn.disabled = false;
 
       await db.ref(`rooms/${roomCode}/calledWords/${picked}`).set(firebase.database.ServerValue.TIMESTAMP);
       document.getElementById('remainingInfo').textContent = `남은 단어: ${remaining.length-1}개`;
       checkAllBingosForRoom(roomCode);
-    }, 1200);
+    }, 1500);
   };
 
   document.getElementById('resetRoomBtn').onclick = async ()=>{
@@ -374,6 +384,28 @@ function enterHostDashboard(roomCode, size, words){
       return `<tr class="${cls}"><td>${i+1}</td><td>${escapeHtml(p.name||'-')}</td><td>${p.checkedCount||0}</td><td>${status}</td></tr>`;
     }).join('');
   });
+}
+
+function generateLottoBalls(){
+  const dome = document.getElementById('lottoMachine');
+  const domeSize = 220, ballSize = 30, margin = 10;
+  const count = 16;
+  let html = '';
+  for(let i=0;i<count;i++){
+    // 원형 영역 안에 랜덤 배치 (중심 기준 반경 제한)
+    const angle = Math.random()*2*Math.PI;
+    const radius = Math.random()*(domeSize/2 - ballSize - margin);
+    const cx = domeSize/2 + radius*Math.cos(angle) - ballSize/2;
+    const cy = domeSize/2 + radius*Math.sin(angle) - ballSize/2;
+    const dur = (0.5 + Math.random()*0.5).toFixed(2);
+    const delay = (Math.random()*0.4).toFixed(2);
+    const dx1=(Math.random()*16-8).toFixed(1), dy1=(Math.random()*16-8).toFixed(1);
+    const dx2=(Math.random()*16-8).toFixed(1), dy2=(Math.random()*16-8).toFixed(1);
+    const dx3=(Math.random()*16-8).toFixed(1), dy3=(Math.random()*16-8).toFixed(1);
+    const label = Math.floor(Math.random()*99)+1;
+    html += `<div class="ball" style="left:${cx}px;top:${cy}px;animation-duration:${dur}s;animation-delay:${delay}s;--dx1:${dx1}px;--dy1:${dy1}px;--dx2:${dx2}px;--dy2:${dy2}px;--dx3:${dx3}px;--dy3:${dy3}px;">${label}</div>`;
+  }
+  dome.innerHTML = html;
 }
 
 function escapeHtml(s){ const d=document.createElement('div'); d.innerText=s; return d.innerHTML; }
