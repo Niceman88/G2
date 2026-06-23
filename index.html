@@ -113,6 +113,9 @@
   .giftcard.mint .brand{color:#0c8a7f;}
   .giftcard.mint .amount{color:#066158;}
   .final-close-btn{margin-top:18px;}
+
+  .progress-bar-outer{width:54px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px;}
+  .progress-bar-inner{height:100%;background:var(--primary);transition:width 0.3s;}
 </style>
 </head>
 <body>
@@ -510,9 +513,11 @@ function enterHostDashboard(roomCode, size, words, existingStatus, winLines){
     }
     document.getElementById('finalOverlay').classList.remove('hidden');
   };
+
   document.getElementById('recalcFinalBtn').onclick = async ()=>{
     if(!confirm('현재 빙고 완성 현황을 기준으로 최종 결과를 다시 집계할까요? 기존에 저장된 결과는 덮어씌워집니다.')) return;
     await computeAndSaveFinalResults();
+    await prepareDraft();
   };
   document.getElementById('closeFinalBtn').onclick = ()=>{
     document.getElementById('finalOverlay').classList.add('hidden');
@@ -548,8 +553,10 @@ function enterHostDashboard(roomCode, size, words, existingStatus, winLines){
     document.getElementById('playerCount').textContent = arr.length;
     const sorted = [...arr].sort((a,b)=>{
       if(!!a.disqualified !== !!b.disqualified) return a.disqualified?1:-1;
-      if((b.bingoCount||0) !== (a.bingoCount||0)) return (b.bingoCount||0)-(a.bingoCount||0);
-      const at = a.bingoSubmittedAt || Infinity, bt = b.bingoSubmittedAt || Infinity;
+      // 1) 현재까지 완성한 줄 수가 많은 사람이 위로
+      if((b.lineProgress||0) !== (a.lineProgress||0)) return (b.lineProgress||0)-(a.lineProgress||0);
+      // 2) 같은 줄 수라면, 그 줄 수에 먼저 도달한 사람이 위로 (실시간 추월 반영)
+      const at = a.lineProgressAt || Infinity, bt = b.lineProgressAt || Infinity;
       return at-bt;
     });
     document.getElementById('rankTableBody').innerHTML = sorted.map((p,i)=>{
@@ -561,7 +568,9 @@ function enterHostDashboard(roomCode, size, words, existingStatus, winLines){
       else if(!p.ready) status = '✍️ 빙고판 작성 중';
       else if(p.ready && !anyWordCalled) status = '🙆 준비 완료';
       else status = '🎮 게임 참가중';
-      return `<tr class="${cls}"><td>${i+1}</td><td>${escapeHtml(p.name||'-')}</td><td>${p.checkedCount||0}</td><td>${p.lineProgress||0} / ${winLines||3}줄</td><td>${status}</td></tr>`;
+      const pct = Math.min(100, Math.round(((p.lineProgress||0) / (winLines||3)) * 100));
+      const progressHtml = `<div class="progress-bar-outer"><div class="progress-bar-inner" style="width:${pct}%"></div></div>${p.lineProgress||0} / ${winLines||3}줄`;
+      return `<tr class="${cls}"><td>${i+1}</td><td>${escapeHtml(p.name||'-')}</td><td>${p.checkedCount||0}</td><td>${progressHtml}</td><td>${status}</td></tr>`;
     }).join('');
   }
 
@@ -612,14 +621,23 @@ document.getElementById('joinRoomBtn').onclick = async ()=>{
   const room = roomSnap.val();
 
   myRoomCode = code;
-  myPlayerId = genPlayerId();
   mySize = room.size;
   myWinLines = room.winLines;
   myWordPool = room.words;
 
-  await db.ref(`rooms/${code}/players/${myPlayerId}`).set({
-    name, board: [], checked: {}, checkedCount:0, disqualified:false, bingoCount:0, ready:false, joinedAt: firebase.database.ServerValue.TIMESTAMP
-  });
+  // 동일한 이름으로 이미 참가했던 기록이 있으면, 새로 만들지 않고 그 기록을 이어서 사용
+  const existingPlayers = room.players || {};
+  const existingId = Object.keys(existingPlayers).find(pid => existingPlayers[pid].name === name);
+
+  if(existingId){
+    myPlayerId = existingId;
+    await db.ref(`rooms/${code}/players/${myPlayerId}/lastSeenAt`).set(firebase.database.ServerValue.TIMESTAMP);
+  } else {
+    myPlayerId = genPlayerId();
+    await db.ref(`rooms/${code}/players/${myPlayerId}`).set({
+      name, board: [], checked: {}, checkedCount:0, lineProgress:0, disqualified:false, bingoCount:0, ready:false, joinedAt: firebase.database.ServerValue.TIMESTAMP
+    });
+  }
 
   enterPlayerScreen();
 };
@@ -640,7 +658,7 @@ function enterPlayerScreen(){
 
   let gameStarted = false;
   // 게임 시작 여부 / 종료 여부 감시 (게임 시작 전까지는 대기 화면만 보여줌)
-  db.ref(`rooms/${myRoomCode}/status`).on('value', snap=>{
+  db.ref(`rooms/${myRoomCode}/status`).on('value', async snap=>{
     const status = snap.val();
     if(status === 'ended'){
       document.getElementById('gameWaitCard').classList.add('hidden');
@@ -652,9 +670,29 @@ function enterPlayerScreen(){
     if(status === 'started' && !gameStarted){
       gameStarted = true;
       document.getElementById('gameWaitCard').classList.add('hidden');
-      document.getElementById('boardBuildCard').classList.remove('hidden');
-      renderWordBank();
-      renderBuildGrid();
+
+      // 재입장한 참가자라면 기존 진행 상태(빙고판/체크 현황)를 그대로 복원
+      const myDataSnap = await db.ref(`rooms/${myRoomCode}/players/${myPlayerId}`).get();
+      const myData = myDataSnap.val() || {};
+      const boardComplete = Array.isArray(myData.board) && myData.board.length === mySize*mySize && myData.board.every(w=>w);
+
+      if(myData.ready && boardComplete){
+        myBoardWords = myData.board;
+        myCheckedState = myData.checked || {};
+        document.getElementById('boardBuildCard').classList.add('hidden');
+        document.getElementById('playCard').classList.remove('hidden');
+        renderPlayGrid();
+        Object.keys(myCheckedState).forEach(idx=>{
+          const el = document.querySelector(`#playGrid .cell[data-idx="${idx}"]`);
+          if(el) el.classList.add('checked');
+        });
+        autoCheckCalledWords();
+      } else {
+        if(boardComplete) myBoardWords = myData.board; // 만들다 만 보드 복원
+        document.getElementById('boardBuildCard').classList.remove('hidden');
+        renderWordBank();
+        renderBuildGrid();
+      }
     }
     if(status !== 'started' && status !== 'ended'){
       // 아직 시작 전: 대기화면만 노출
@@ -751,7 +789,15 @@ async function autoCheckCalledWords(){
 
   const checkedCount = Object.keys(myCheckedState).length;
   const lines = countCompletedLines(myCheckedState, mySize);
-  await db.ref(`rooms/${myRoomCode}/players/${myPlayerId}`).update({checked: myCheckedState, checkedCount, lineProgress: lines});
+
+  const prevSnap = await db.ref(`rooms/${myRoomCode}/players/${myPlayerId}/lineProgress`).get();
+  const prevLines = prevSnap.val() || 0;
+  const updates = { checked: myCheckedState, checkedCount, lineProgress: lines };
+  if(lines > prevLines){
+    // 줄 수가 새로 늘어난 시점을 기록 -> 실시간 순위(누가 먼저 그 줄 수를 채웠는지) 산정에 사용
+    updates.lineProgressAt = firebase.database.ServerValue.TIMESTAMP;
+  }
+  await db.ref(`rooms/${myRoomCode}/players/${myPlayerId}`).update(updates);
 
   if(lines >= myWinLines){
     const playerSnap = await db.ref(`rooms/${myRoomCode}/players/${myPlayerId}`).get();
