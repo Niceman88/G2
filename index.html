@@ -109,6 +109,9 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,0.12);}
   .giftcard .brand{font-size:11px;font-weight:900;color:#c81e4f;letter-spacing:0.5px;}
   .giftcard .amount{font-size:15px;font-weight:900;color:#7a0f30;margin-top:2px;}
+  .giftcard.mint{background:linear-gradient(135deg,#e8fdfb,#bdf3ee);border:1px solid #5fd6cc;}
+  .giftcard.mint .brand{color:#0c8a7f;}
+  .giftcard.mint .amount{color:#066158;}
   .final-close-btn{margin-top:18px;}
 </style>
 </head>
@@ -223,6 +226,8 @@
   <div class="final-box">
     <h2>🎁 최종 결과 발표</h2>
     <div id="winnerListBox"></div>
+    <div class="small-muted" style="margin-top:10px;">한 번 발표된 결과는 저장되어, 다음에 다시 들어와도 같은 결과가 보입니다.</div>
+    <button class="btn secondary" id="recalcFinalBtn" style="margin-top:8px;">🔄 현재 현황으로 다시 집계</button>
     <button class="btn final-close-btn" id="closeFinalBtn">닫기</button>
   </div>
 </div>
@@ -453,32 +458,61 @@ function enterHostDashboard(roomCode, size, words, existingStatus){
     }, 1500);
   };
 
-  document.getElementById('showFinalBtn').onclick = async ()=>{
+  function prizeForRank(rank){
+    if(rank === 1) return { amount: 100000, brand: '신세계 상품권', cls: '' };
+    if(rank >= 2 && rank <= 10) return { amount: 50000, brand: '신세계 상품권', cls: '' };
+    if(rank >= 11 && rank <= 20) return { amount: 20000, brand: '배달의민족 선물', cls: 'mint' };
+    return null;
+  }
+
+  function renderWinnerList(records){
+    if(!records || records.length === 0){
+      document.getElementById('winnerListBox').innerHTML = '<div class="small-muted" style="padding:20px;">아직 빙고를 완성한 참가자가 없습니다.</div>';
+      return;
+    }
+    document.getElementById('winnerListBox').innerHTML = records.map(r=>{
+      return `
+        <div class="winner-row">
+          <div class="winner-rank">${r.rank===1?'🥇':r.rank+'등'}</div>
+          <div class="winner-name">${escapeHtml(r.name||'-')}</div>
+          <div class="giftcard ${r.cls||''}">
+            <div class="brand">${r.brand}</div>
+            <div class="amount">${(r.amount||0).toLocaleString()}원</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  async function computeAndSaveFinalResults(){
     const playersSnap = await db.ref(`rooms/${roomCode}/players`).get();
     const players = playersSnap.val() || {};
     const winners = Object.values(players)
       .filter(p => p.bingoCount > 0 && !p.disqualified)
       .sort((a,b)=> (a.bingoSubmittedAt||Infinity) - (b.bingoSubmittedAt||Infinity))
-      .slice(0, 9);
+      .slice(0, 20);
 
-    if(winners.length === 0){
-      document.getElementById('winnerListBox').innerHTML = '<div class="small-muted" style="padding:20px;">아직 빙고를 완성한 참가자가 없습니다.</div>';
+    const records = winners.map((p,i)=>{
+      const rank = i+1;
+      const prize = prizeForRank(rank);
+      return { rank, name: p.name||'-', amount: prize?prize.amount:0, brand: prize?prize.brand:'', cls: prize?prize.cls:'' };
+    });
+
+    await db.ref(`rooms/${roomCode}/finalResults`).set(records);
+    renderWinnerList(records);
+  }
+
+  document.getElementById('showFinalBtn').onclick = async ()=>{
+    const savedSnap = await db.ref(`rooms/${roomCode}/finalResults`).get();
+    if(savedSnap.exists()){
+      renderWinnerList(savedSnap.val());
     } else {
-      document.getElementById('winnerListBox').innerHTML = winners.map((p,i)=>{
-        const rank = i+1;
-        const amount = rank === 1 ? 100000 : 50000;
-        return `
-          <div class="winner-row">
-            <div class="winner-rank">${rank===1?'🥇':rank+'등'}</div>
-            <div class="winner-name">${escapeHtml(p.name||'-')}</div>
-            <div class="giftcard">
-              <div class="brand">신세계 상품권</div>
-              <div class="amount">${amount.toLocaleString()}원</div>
-            </div>
-          </div>`;
-      }).join('');
+      await computeAndSaveFinalResults();
     }
     document.getElementById('finalOverlay').classList.remove('hidden');
+  };
+  document.getElementById('recalcFinalBtn').onclick = async ()=>{
+    if(!confirm('현재 빙고 완성 현황을 기준으로 최종 결과를 다시 집계할까요? 기존에 저장된 결과는 덮어씌워집니다.')) return;
+    await computeAndSaveFinalResults();
   };
   document.getElementById('closeFinalBtn').onclick = ()=>{
     document.getElementById('finalOverlay').classList.add('hidden');
@@ -490,18 +524,27 @@ function enterHostDashboard(roomCode, size, words, existingStatus){
     location.reload();
   };
 
-  // 실시간 호출 단어 표시
+  // 실시간 호출 단어 표시 + 단어가 한 번이라도 뽑혔는지 추적
+  let anyWordCalled = false;
+  let latestPlayersArr = [];
   db.ref(`rooms/${roomCode}/calledWords`).on('value', snap=>{
     const data = snap.val() || {};
     const list = Object.keys(data).sort((a,b)=>data[a]-data[b]);
     document.getElementById('calledCount').textContent = list.length;
     document.getElementById('calledListBox').innerHTML = list.map(w=>`<span class="called-tag">${w}</span>`).join('');
+    anyWordCalled = list.length > 0;
+    renderRankTable();
   });
 
-  // 실시간 참가자 / 순위 표시
-  db.ref(`rooms/${roomCode}/players`).on('value', snap=>{
-    const players = snap.val() || {};
-    const arr = Object.values(players);
+  // 게임 시작 여부(room.status) 추적
+  let roomStarted = false;
+  db.ref(`rooms/${roomCode}/status`).on('value', snap=>{
+    roomStarted = (snap.val() === 'started' || snap.val() === 'ended');
+    renderRankTable();
+  });
+
+  function renderRankTable(){
+    const arr = latestPlayersArr;
     document.getElementById('playerCount').textContent = arr.length;
     const sorted = [...arr].sort((a,b)=>{
       if(!!a.disqualified !== !!b.disqualified) return a.disqualified?1:-1;
@@ -514,10 +557,19 @@ function enterHostDashboard(roomCode, size, words, existingStatus){
       let status;
       if(p.disqualified) status = '❌ 탈락';
       else if(p.bingoCount>0) status = `✅ 빙고 (${i===0?'🥇 1등':i+1+'등'})`;
-      else if(p.ready) status = '🙋 준비 완료';
-      else status = '⏳ 빙고판 작성 중';
+      else if(!roomStarted) status = '🙋 참가 완료';
+      else if(!p.ready) status = '✍️ 빙고판 작성 중';
+      else if(p.ready && !anyWordCalled) status = '🙆 준비 완료';
+      else status = '🎮 게임 참가중';
       return `<tr class="${cls}"><td>${i+1}</td><td>${escapeHtml(p.name||'-')}</td><td>${p.checkedCount||0}</td><td>${status}</td></tr>`;
     }).join('');
+  }
+
+  // 실시간 참가자 / 순위 표시
+  db.ref(`rooms/${roomCode}/players`).on('value', snap=>{
+    const players = snap.val() || {};
+    latestPlayersArr = Object.values(players);
+    renderRankTable();
   });
 }
 
