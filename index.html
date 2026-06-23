@@ -175,6 +175,15 @@
       <div class="qr-box small-muted">참가자는 위 URL로 미리 접속해서 이름을 입력하고 대기할 수 있습니다. (게임을 시작하기 전까지는 어떤 게임인지 보이지 않습니다)</div>
       <div id="joinStatusBadge" style="margin-top:10px;font-weight:700;font-size:13px;color:var(--danger);">⏳ 게임 시작 전 (참가자들이 대기 중입니다)</div>
       <button class="btn" id="openJoinBtn">🚀 게임 Start!</button>
+
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">
+        <span class="pill" style="background:#fff3cd;color:#8a6d00;">⚠️ 호스트 전용 (절대 타인에게 공유 금지)</span>
+        <div class="small-muted" style="margin:8px 0 4px;">이 URL을 즐겨찾기/북마크 해두세요. 페이지를 닫아도 이 주소로 다시 들어오면 같은 방을 호스트로 계속 이어서 진행할 수 있습니다.</div>
+        <div class="copy-row">
+          <input id="dashHostUrl" readonly>
+          <button class="btn secondary" id="copyHostUrlBtn">호스트 URL 복사</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -298,8 +307,24 @@ document.getElementById('wordInput').addEventListener('input', (e)=>{
 });
 
 /* ---------------- URL 파라미터로 자동 참가 (?room=1234) ---------------- */
-window.addEventListener('DOMContentLoaded', ()=>{
+window.addEventListener('DOMContentLoaded', async ()=>{
   const params = new URLSearchParams(location.search);
+  const hostParam = params.get('host');
+  if(hostParam){
+    // 호스트 전용 URL로 재접속: 기존 방 데이터를 불러와 그대로 이어서 진행
+    document.getElementById('entryWrap').classList.add('hidden');
+    const roomSnap = await db.ref('rooms/'+hostParam).get();
+    if(!roomSnap.exists()){
+      document.getElementById('entryWrap').classList.remove('hidden');
+      alert('해당 방을 찾을 수 없습니다. 방이 초기화되었거나 코드가 잘못되었을 수 있습니다.');
+      return;
+    }
+    const room = roomSnap.val();
+    myRoomCode = hostParam;
+    enterHostDashboard(hostParam, room.size, room.words, room.status);
+    return;
+  }
+
   const roomParam = params.get('room');
   if(roomParam){
     // 참가자용 URL로 접속한 경우: 진행자 탭/방만들기 자체를 화면에서 제거하고
@@ -344,7 +369,7 @@ document.getElementById('createRoomBtn').onclick = async ()=>{
   enterHostDashboard(roomCode, size, words);
 };
 
-function enterHostDashboard(roomCode, size, words){
+function enterHostDashboard(roomCode, size, words, existingStatus){
   document.getElementById('entryWrap').classList.add('hidden');
   document.getElementById('hostDashboard').classList.remove('hidden');
   document.getElementById('dashRoomCode').textContent = roomCode;
@@ -354,6 +379,21 @@ function enterHostDashboard(roomCode, size, words){
     navigator.clipboard.writeText(joinUrl);
     alert('URL이 복사되었습니다. PPT에 붙여넣으세요.');
   };
+
+  const hostUrl = location.origin + location.pathname + '?host=' + roomCode;
+  document.getElementById('dashHostUrl').value = hostUrl;
+  document.getElementById('copyHostUrlBtn').onclick = ()=>{
+    navigator.clipboard.writeText(hostUrl);
+    alert('호스트 URL이 복사되었습니다. 본인만 보는 곳(메모, 즐겨찾기)에 저장해두세요.');
+  };
+
+  // 이미 게임이 시작된 방으로 재접속한 경우, 버튼/배지 상태를 그에 맞게 표시
+  if(existingStatus === 'started' || existingStatus === 'ended'){
+    document.getElementById('joinStatusBadge').textContent = '✅ 게임 진행 중';
+    document.getElementById('joinStatusBadge').style.color = 'var(--success)';
+    document.getElementById('openJoinBtn').disabled = true;
+    document.getElementById('openJoinBtn').textContent = '게임 진행 중...';
+  }
 
   document.getElementById('openJoinBtn').onclick = async ()=>{
     await db.ref(`rooms/${roomCode}/status`).set('started');
